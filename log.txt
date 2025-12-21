@@ -1,8 +1,0 @@
-2025-12-21 16:46:24 DEBUG __main__ - SPREADSHEET_ID is not set; cannot fetch category mappings
-2025-12-21 16:50:12 DEBUG urllib3.connectionpool - Starting new HTTPS connection (1): oauth2.googleapis.com:443
-2025-12-21 16:50:13 DEBUG urllib3.connectionpool - https://oauth2.googleapis.com:443 "POST /token HTTP/1.1" 200 None
-2025-12-21 16:50:13 DEBUG __main__ - Fetching category mappings for spreadsheet_id=1EtvZZUp8qoR7YUsoM6_V1YfXcqX9q1oaxu2VvOzwbd4
-2025-12-21 16:50:13 DEBUG api.google_sheets_client.GoogleSheetsClient - GET spreadsheets/1EtvZZUp8qoR7YUsoM6_V1YfXcqX9q1oaxu2VvOzwbd4/values/Category Mappings starting
-2025-12-21 16:50:13 DEBUG urllib3.connectionpool - Starting new HTTPS connection (1): sheets.googleapis.com:443
-2025-12-21 16:50:14 DEBUG urllib3.connectionpool - https://sheets.googleapis.com:443 "GET /v4/spreadsheets/1EtvZZUp8qoR7YUsoM6_V1YfXcqX9q1oaxu2VvOzwbd4/values/Category%20Mappings HTTP/1.1" 200 None
-2025-12-21 16:50:14 DEBUG __main__ - Loaded category mappings with shape (6, 5) and columns ['Alias', 'User 1', 'User 2', 'Weekly Reporting', 'Shared']
