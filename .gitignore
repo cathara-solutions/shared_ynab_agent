@@ -29,6 +29,12 @@ dist/
 .env.*
 !.env.example
 
+# Service account credentials
+credentials.json
+service_account.json
+*.serviceaccount.json
+!credentials.example.json
+
 # Tooling caches
 .mypy_cache/
 .ruff_cache/

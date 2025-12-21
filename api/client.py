@@ -6,12 +6,14 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional
 
 import requests
+from dotenv import load_dotenv
 
 
 class AbstractApiClient(ABC):
     """Base client that manages a requests Session and API key handling."""
 
     def __init__(self, base_url: Optional[str] = None) -> None:
+        load_dotenv()
         self.base_url = base_url.rstrip("/") if base_url else None
         self.session = requests.Session()
         self.session.headers.update({"Authorization": f"Bearer {self._api_key}"})

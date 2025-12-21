@@ -6,12 +6,14 @@ from difflib import get_close_matches
 from typing import Any, Optional
 
 import requests
+from dotenv import load_dotenv
 
 from .client import AbstractApiClient
 
 
 class YNABClient(AbstractApiClient):
     def __init__(self, base_url: Optional[str] = None) -> None:
+        load_dotenv()
         super().__init__(base_url=base_url or "https://api.ynab.com/v1")
 
     @property
@@ -30,11 +32,15 @@ class YNABClient(AbstractApiClient):
                 if isinstance(since_date, date)
                 else datetime.fromisoformat(str(since_date)).date().isoformat()
             )
-        except ValueError as exc:
-            self.logger.error("Invalid since_date provided: %s", since_date)
+        except ValueError:
+            self.logger.debug(
+                "Invalid since_date provided: %s", since_date, exc_info=True
+            )
             raise
 
-        self.logger.debug("Fetching transactions for budget=%s since=%s", budget_id, iso_date)
+        self.logger.debug(
+            "Fetching transactions for budget=%s since=%s", budget_id, iso_date
+        )
 
         page = 1
         all_transactions: list[dict[str, Any]] = []
@@ -64,7 +70,13 @@ class YNABClient(AbstractApiClient):
                     break
                 page += 1
         except requests.RequestException as exc:
-            self.logger.error("Failed fetching transactions for budget=%s: %s", budget_id, exc, exc_info=True)
+            self.logger.error(
+                "Failed fetching transactions for budget=%s: %s",
+                budget_id,
+                exc,
+                exc_info=True,
+            )
+            self.logger.debug("RequestException fetching transactions", exc_info=True)
             raise
 
         self.logger.debug("Fetched %s transactions", len(all_transactions))
@@ -118,7 +130,17 @@ class YNABClient(AbstractApiClient):
                 "categories": categories,
             }
         except Exception as exc:
-            self.logger.error("Failed to normalize transaction %s: %s", tx.get("id"), exc, exc_info=True)
+            self.logger.error(
+                "Failed to normalize transaction %s: %s",
+                tx.get("id"),
+                exc,
+                exc_info=True,
+            )
+            self.logger.debug(
+                "Normalization exception for transaction %s",
+                tx.get("id"),
+                exc_info=True,
+            )
             raise
 
     def get_budget_id_by_name(self, name: str) -> str:
@@ -127,14 +149,13 @@ class YNABClient(AbstractApiClient):
         response = self.get("budgets")
         budgets = response.get("data", {}).get("budgets", [])
         if not budgets:
+            self.logger.debug("No budgets returned when searching for %s", name)
             raise ValueError("No budgets returned from YNAB")
 
         query = name.lower()
 
         # Prefer case-insensitive substring matches (cheap and predictable).
-        substring_matches = [
-            b for b in budgets if query in b.get("name", "").lower()
-        ]
+        substring_matches = [b for b in budgets if query in b.get("name", "").lower()]
         if substring_matches:
             # If multiple match, pick the first; adjust if you want tie-breaking.
             return substring_matches[0]["id"]
@@ -148,4 +169,5 @@ class YNABClient(AbstractApiClient):
                 if b.get("name", "") == matched_name:
                     return b["id"]
 
+        self.logger.debug("No budget matched search term '%s'", name)
         raise ValueError(f"No budget found matching '{name}'")
