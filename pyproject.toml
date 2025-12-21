@@ -1,0 +1,17 @@
+[project]
+name = "shared-ynab-agent"
+version = "0.1.0"
+description = "An agent to help facilitate sharing transactions across multiple YNAB accounts in the same household. It will help split and categorize transactions."
+authors = [
+    {name = "Cathara Spencer",email = "catharaspencer@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "requests (>=2.32.5,<3.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

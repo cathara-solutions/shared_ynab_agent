@@ -1,0 +1,42 @@
+# Bytecode / cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.dylib
+.pytest_cache/
+.coverage*
+.cache/
+*.prof
+
+# Virtual environments (Poetry or manual)
+.venv/
+venv/
+env/
+
+# Poetry
+.poetry-cache/
+poetry.toml
+
+# Packaging / build artifacts
+build/
+dist/
+*.egg-info/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Tooling caches
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

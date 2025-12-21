@@ -1,0 +1,51 @@
+#############################################################################
+# Pre-commit configuration file to enforce code quality and consistency
+#############################################################################
+
+# Global exclude sensitive files
+exclude: '(?x)^(.gitignore|.pre-commit-config)$'
+
+repos:
+  # Format code
+  - repo: https://github.com/psf/black
+    rev: 25.11.0
+    hooks:
+      - id: black
+
+  # Clean up code/linter
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.3.0
+    hooks:
+      - id: flake8
+        args: ["--extend-ignore=E501"]
+
+  # Sort import statements
+  - repo: https://github.com/PyCQA/isort
+    rev: 7.0.0
+    hooks:
+      - id: isort
+
+  # General syntax help
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-docstring-first
+      - id: pretty-format-json
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  # Markdownlint: Lint and fix Markdown files
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.46.0
+    hooks:
+      - id: markdownlint
+        args: ["--disable","MD013"]
+
+  # SQL: standardize
+  - repo: https://github.com/sqlfluff/sqlfluff
+    rev: 3.2.4
+    hooks:
+      - id: sqlfluff-fix
+        args: ["--dialect=postgres", "--force", "--rules=capitalisation.keywords,capitalisation.functions"]
