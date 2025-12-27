@@ -144,7 +144,6 @@ class YNABClient(AbstractApiClient):
                 "cleared": tx.get("cleared"),  # Keep raw YNAB cleared value.
                 "approved": bool(tx.get("approved")),
                 "payee_name": tx.get("payee_name") or "",
-                "account_id": tx.get("account_id", ""),
                 "account_name": strip_emoji(tx.get("account_name") or ""),
                 "deleted": bool(tx.get("deleted")),
                 "flag_color": tx.get("flag_color") or "",
@@ -164,31 +163,98 @@ class YNABClient(AbstractApiClient):
             )
             raise
 
-    def get_budget_id_by_name(self, name: str) -> str:
-        """Return budget id whose name matches the provided (possibly partial) name."""
-        self.logger.debug("Searching for budget name containing: %s", name)
-        response = self.get("budgets")
-        budgets = response.get("data", {}).get("budgets", [])
-        if not budgets:
-            self.logger.debug("No budgets returned when searching for %s", name)
-            raise ValueError("No budgets returned from YNAB")
+    def get_id_by_name(
+        self,
+        path: str | None,
+        name: str,
+        list_key: str = "budgets",
+        name_key: str = "name",
+        id_key: str = "id",
+        objects: Optional[list[dict[str, Any]]] = None,
+        **kwargs: Any,
+    ) -> str:
+        """
+        Return an object's id whose name matches the provided (possibly partial) name.
+
+        - path: API path (e.g., "budgets"); if None, uses provided objects
+        - list_key: key within data holding the list (default: "budgets")
+        - name_key/id_key: keys for name and id fields on each object
+        - objects: optional pre-fetched list to search (bypasses GET)
+        - kwargs: extra params for GET
+        """
+        if objects is None:
+            if not path:
+                raise ValueError("path is required when objects are not provided")
+            self.logger.debug("Searching for %s containing: %s", path, name)
+            response = self.get(path, params=kwargs or None)
+            objects = response.get("data", {}).get(list_key, [])
+        else:
+            self.logger.debug(
+                "Searching provided objects for name containing: %s", name
+            )
+        if not objects:
+            self.logger.debug("No %s available when searching for %s", list_key, name)
+            raise ValueError(f"No {list_key} available to search")
 
         query = name.lower()
 
         # Prefer case-insensitive substring matches (cheap and predictable).
-        substring_matches = [b for b in budgets if query in b.get("name", "").lower()]
+        substring_matches = [
+            obj for obj in objects if query in str(obj.get(name_key, "")).lower()
+        ]
         if substring_matches:
-            # If multiple match, pick the first; adjust if you want tie-breaking.
-            return substring_matches[0]["id"]
+            # If multiple match, pick the first.
+            return substring_matches[0][id_key]
 
         # Fallback to closest name using simple fuzzy matching.
-        names = [b.get("name", "") for b in budgets]
+        names = [str(obj.get(name_key, "")) for obj in objects]
         best_match = get_close_matches(query, names, n=1, cutoff=0.6)
         if best_match:
             matched_name = best_match[0]
-            for b in budgets:
-                if b.get("name", "") == matched_name:
-                    return b["id"]
+            for obj in objects:
+                if str(obj.get(name_key, "")) == matched_name:
+                    return obj[id_key]
 
-        self.logger.debug("No budget matched search term '%s'", name)
-        raise ValueError(f"No budget found matching '{name}'")
+        self.logger.debug("No object matched search term '%s' at path %s", name, path)
+        raise ValueError(f"No object found matching '{name}' at path '{path}'")
+
+    def get_budget_id_by_name(self, name: str) -> str:
+        """Return budget id whose name matches the provided (possibly partial) name."""
+        return self.get_id_by_name(
+            "budgets", name, list_key="budgets", name_key="name", id_key="id"
+        )
+
+    def get_category_id_by_name(self, budget_id: str, name: str) -> str:
+        """
+        Return category id by name within a budget, searching all category groups.
+        """
+        self.logger.debug(
+            "Searching for category containing '%s' in budget %s", name, budget_id
+        )
+        response = self.get(f"budgets/{budget_id}/categories")
+        groups = response.get("data", {}).get("category_groups", [])
+        categories: list[dict[str, Any]] = []
+        for group in groups:
+            categories.extend(group.get("categories", []) or [])
+        return self.get_id_by_name(
+            path=None,
+            name=name,
+            list_key="categories",
+            name_key="name",
+            id_key="id",
+            objects=categories,
+        )
+
+    def get_account_id_by_name(self, budget_id: str, name: str) -> str:
+        """Return account id by name within a budget."""
+        self.logger.debug(
+            "Searching for account containing '%s' in budget %s", name, budget_id
+        )
+        path = f"budgets/{budget_id}/accounts"
+        return self.get_id_by_name(
+            path=path,
+            name=name,
+            list_key="accounts",
+            name_key="name",
+            id_key="id",
+        )
