@@ -11,6 +11,28 @@ from dotenv import load_dotenv
 from .client import AbstractApiClient
 
 
+def strip_emoji(text: str | None) -> str:
+    """
+    Remove emoji and nearby joiner/variation chars so text is spaced cleanly.
+
+    Handles both BMP symbols (e.g., coffee cup) and astral-plane emoji.
+    """
+    if not text:
+        return ""
+
+    emoji_re = re.compile(
+        r"[\U0001F1E6-\U0001F1FF"  # regional indicators / flags
+        r"\U0001F300-\U0001FAFF"  # pictographs, symbols, emoji
+        r"\u2600-\u27BF"  # misc symbols + dingbats (includes coffee cup, heart exclamation)
+        r"\ufe0f"  # variation selector
+        r"\u200d"  # zero-width joiner
+        r"]",
+        flags=re.UNICODE,
+    )
+    cleaned = emoji_re.sub(" ", text)
+    return " ".join(cleaned.split())
+
+
 class YNABClient(AbstractApiClient):
     def __init__(self, base_url: Optional[str] = None) -> None:
         load_dotenv()
@@ -85,10 +107,6 @@ class YNABClient(AbstractApiClient):
     def _normalize_transaction(self, tx: dict[str, Any]) -> dict[str, Any]:
         """Normalize a YNAB transaction into the agreed schema."""
 
-        def strip_emoji(text: str | None) -> str:
-            # Remove emoji/symbol codepoints to keep category names clean.
-            return re.sub(r"[\U00010000-\U0010ffff]", "", text or "").strip()
-
         try:
             categories: list[dict[str, Any]] = []
             subtransactions = tx.get("subtransactions") or []
@@ -126,7 +144,10 @@ class YNABClient(AbstractApiClient):
                 "cleared": tx.get("cleared"),  # Keep raw YNAB cleared value.
                 "approved": bool(tx.get("approved")),
                 "payee_name": tx.get("payee_name") or "",
+                "account_id": tx.get("account_id", ""),
+                "account_name": strip_emoji(tx.get("account_name") or ""),
                 "deleted": bool(tx.get("deleted")),
+                "flag_color": tx.get("flag_color") or "",
                 "categories": categories,
             }
         except Exception as exc:
