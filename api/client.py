@@ -68,3 +68,13 @@ class AbstractApiClient(ABC):
     ) -> Any:
         self.logger.debug("POST %s starting", path)
         return self._request("post", path, json=json, data=data, **kwargs)
+
+    def patch(
+        self,
+        path: str,
+        json: Any | None = None,
+        data: Any | None = None,
+        **kwargs: Any,
+    ) -> Any:
+        self.logger.debug("PATCH %s starting", path)
+        return self._request("patch", path, json=json, data=data, **kwargs)
