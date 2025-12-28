@@ -555,29 +555,173 @@ def split_transactions_between_users(
 
         grouped_results.append(
             {
-                "original": tx,
+                "original": {
+                    **tx,
+                    "budget_id": source_user.get("budget_id"),
+                    "user_num": source_user.get("user_num"),
+                },
                 "source": (
                     None
                     if skip_source_tx
                     else {
                         **tx,
+                        "budget_id": source_user.get("budget_id"),
                         "total_amount": source_total,
                         "account_name": source_shared_account,
                         "account_id": source_account_id,
                         "categories": source_categories_built,
+                        "id": None,
+                        "flag_color": None,
+                        "user_num": source_user.get("user_num"),
                     }
                 ),
                 "target": {
                     **tx,
+                    "budget_id": target_user.get("budget_id"),
                     "total_amount": target_total,
                     "account_name": target_shared_account,
                     "account_id": target_account_id,
                     "categories": target_categories_built,
+                    "id": None,
+                    "flag_color": None,
+                    "user_num": target_user.get("user_num"),
                 },
             }
         )
 
     return grouped_results
+
+
+def upsert_shared_transactions(
+    transactions: list[dict[str, Any]],
+    spreadsheet_id: Optional[str] = None,
+    sheets_client: Optional[GoogleSheetsClient] = None,
+    users_df: Optional[pd.DataFrame] = None,
+    ynab_client: Optional[YNABClient] = None,
+) -> list[dict[str, Any]]:
+    """
+    Upsert transactions: update flag_color on existing, create new ones otherwise.
+
+    - For transactions with an id: patch flag_color to the user's Shared Flag (lowercase).
+    - For transactions without an id: create the transaction in the provided budget/account.
+    """
+    client = ynab_client or YNABClient()
+    users_df = (
+        users_df
+        if users_df is not None
+        else get_user_settings_df(
+            spreadsheet_id=spreadsheet_id, sheets_client=sheets_client
+        )
+    )
+
+    def _shared_flag_for_user(user_num: int) -> str:
+        try:
+            users_df["User Number"] = pd.to_numeric(
+                users_df["User Number"], errors="coerce"
+            )
+            row = users_df.loc[users_df["User Number"] == user_num]
+            if row.empty:
+                return ""
+            return str(row.iloc[0].get("Shared Flag") or "").strip().lower()
+        except Exception as exc:
+            logger.debug(
+                "Failed to resolve shared flag for user %s: %s",
+                user_num,
+                exc,
+                exc_info=True,
+            )
+            return ""
+
+    results: list[dict[str, Any]] = []
+
+    for tx in transactions:
+        user_num = tx.get("user_num")
+        budget_id = tx.get("budget_id")
+        account_id = tx.get("account_id")
+        tx_id = tx.get("id")
+        if user_num is None or not budget_id:
+            logger.debug("Skipping transaction missing user_num or budget_id: %s", tx)
+            continue
+
+        shared_flag = _shared_flag_for_user(int(user_num))
+
+        if tx_id:
+            payload = {"transactions": [{"id": tx_id, "flag_color": shared_flag}]}
+            try:
+                resp = client.patch(
+                    f"budgets/{budget_id}/transactions",
+                    json=payload,
+                )
+                results.append(
+                    {
+                        "action": "update",
+                        "transaction_id": tx_id,
+                        "budget_id": budget_id,
+                        "response": resp,
+                    }
+                )
+            except Exception as exc:
+                logger.debug(
+                    "Failed to update transaction %s: %s", tx_id, exc, exc_info=True
+                )
+            continue
+
+        if not account_id:
+            logger.debug("Skipping create due to missing account_id: %s", tx)
+            continue
+
+        categories = tx.get("categories") or []
+        subtransactions = []
+        for cat in categories:
+            subtransactions.append(
+                {
+                    "amount": int(cat.get("amount")),
+                    "category_id": cat.get("category_id"),
+                    "memo": cat.get("memo") or "",
+                }
+            )
+
+        transaction_body = {
+            "account_id": account_id,
+            "date": (
+                tx.get("date").isoformat()
+                if hasattr(tx.get("date"), "isoformat")
+                else tx.get("date")
+            ),
+            "amount": (
+                int(tx.get("total_amount"))
+                if tx.get("total_amount") is not None
+                else int(tx.get("amount"))
+            ),
+            "payee_name": tx.get("payee_name"),
+            "memo": tx.get("memo") or "",
+            "subtransactions": subtransactions or None,
+        }
+
+        if len(categories) == 1:
+            transaction_body["category_id"] = categories[0].get("category_id")
+            transaction_body["memo"] += categories[0].get("memo")
+            del transaction_body["subtransactions"]
+
+        transaction_body = {k: v for k, v in transaction_body.items() if v is not None}
+
+        try:
+            resp = client.post(
+                f"budgets/{budget_id}/transactions",
+                json={"transaction": transaction_body},
+            )
+            results.append(
+                {"action": "create", "budget_id": budget_id, "response": resp}
+            )
+        except Exception as exc:
+            logger.debug(
+                "Failed to create transaction for user %s: %s",
+                user_num,
+                exc,
+                exc_info=True,
+            )
+
+    return results
 
 
 def main() -> None:
@@ -632,7 +776,15 @@ def main() -> None:
                 f"{sum(1 for g in grouped if g['source'])} source txns, "
                 f"{len(grouped)} target txns"
             )
-            print(grouped)
+
+            final_tx = pd.DataFrame(grouped)
+            if not final_tx.empty:
+                final_tx_list = final_tx.iloc[0].values.tolist()
+                results = upsert_shared_transactions(
+                    transactions=final_tx_list, users_df=users_df, ynab_client=ynab
+                )
+                print(results)
+            # print(final_tx.iloc[0].values.tolist())
         # print(f"Transactions for {row["Name"]}: {shared_transactions}")
 
 
