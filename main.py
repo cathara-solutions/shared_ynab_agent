@@ -1,6 +1,9 @@
+import base64
 import logging
 import os
+import tempfile
 from datetime import date, timedelta
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query
@@ -44,7 +47,7 @@ class Transaction(BaseModel):
 
 class CategoryWithId(CategoryEntry):
     category_id: Optional[str] = None
-    amount: Optional[float] = None
+    amount: Optional[int] = None
 
 
 class OriginalTransaction(Transaction):
@@ -97,8 +100,27 @@ def verify_api_key(x_api_key: Optional[str] = Header(default=None)) -> None:
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 
+def materialize_google_credentials() -> None:
+    """
+    If GOOGLE_CREDENTIALS_B64 is provided, write it to /tmp/credentials.json and
+    point GOOGLE_SERVICE_ACCOUNT_FILE to that path for Google client usage.
+    """
+    b64_creds = os.getenv("GOOGLE_CREDENTIALS_B64")
+    if not b64_creds:
+        return
+
+    try:
+        target_dir = Path(tempfile.gettempdir())
+        target_path = target_dir / "credentials.json"
+        target_path.write_bytes(base64.b64decode(b64_creds))
+        os.environ["GOOGLE_SERVICE_ACCOUNT_FILE"] = str(target_path)
+    except Exception as exc:
+        raise RuntimeError(f"Failed to materialize Google credentials: {exc}") from exc
+
+
 def create_app() -> FastAPI:
     """Build the FastAPI application."""
+    materialize_google_credentials()
     configure_logging(level=logging.DEBUG)
     logger = logging.getLogger(__name__)
 
@@ -193,11 +215,14 @@ def create_app() -> FastAPI:
             )
 
             try:
-                shared_transactions = filter_shared_transactions_for_user(
+                shared_transactions_raw = filter_shared_transactions_for_user(
                     transactions=transactions,
                     user_number=user_num,
                     category_mappings_df=category_mappings_df,
                 )
+                shared_transactions = [
+                    Transaction.model_validate(tx) for tx in shared_transactions_raw
+                ]
             except Exception:
                 raise HTTPException(
                     status_code=404, detail="Issue retrieving shared transactions"
