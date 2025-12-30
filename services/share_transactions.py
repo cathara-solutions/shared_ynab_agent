@@ -733,7 +733,7 @@ def main() -> None:
     users = []
 
     for index, row in users_df.iterrows():
-        budget_id = ynab.get_budget_id_by_name(row["Name"])
+        budget_id = ynab.get_budget_id_by_name(row["Budget Name"])
         user_num = int(row["User Number"])
         transactions = ynab.get_transactions(
             budget_id=budget_id, since_date="2025-12-20"
