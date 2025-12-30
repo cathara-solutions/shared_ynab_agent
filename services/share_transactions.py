@@ -684,14 +684,14 @@ def upsert_shared_transactions(
         transaction_body = {
             "account_id": account_id,
             "date": (
-                tx.get("date").isoformat()
+                tx.get("date").isoformat()  # type: ignore
                 if hasattr(tx.get("date"), "isoformat")
                 else tx.get("date")
             ),
             "amount": (
-                int(tx.get("total_amount"))
+                int(tx.get("total_amount"))  # type: ignore
                 if tx.get("total_amount") is not None
-                else int(tx.get("amount"))
+                else int(tx.get("amount"))  # type: ignore
             ),
             "payee_name": tx.get("payee_name"),
             "memo": tx.get("memo") or "",
