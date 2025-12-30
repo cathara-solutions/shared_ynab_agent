@@ -1,17 +1,17 @@
 import logging
-from typing import Optional
+import sys
 
 
-def configure_logging(level: int = logging.INFO, filename: str = "log.txt") -> None:
+def configure_logging(level: int = logging.INFO) -> None:
     """
     Configure root logging for the application.
 
-    Logs to `filename` with timestamps; call once at application start.
+    Logs to stdout with timestamps; call once at application start.
     """
     logging.basicConfig(
         level=level,
         format="%(asctime)s %(levelname)s %(name)s - %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
-        handlers=[logging.FileHandler(filename)],
+        handlers=[logging.StreamHandler(sys.stdout)],
         force=True,
     )
