@@ -19,7 +19,7 @@ An assistant service to read household budgets from YNAB, pull sharing rules fro
     - Splitting transactions between user budgets (`split_transactions_between_users`).
     - Upserting transactions/flags back to YNAB (`upsert_shared_transactions`).
 - `tests/` — Pytest coverage for Sheets client, YNAB client, and transaction sharing logic.
-- `logging_config.py` — Root logger setup; app defaults to DEBUG and writes to `log.txt`.
+- `logging_config.py` — Root logger setup; app defaults to DEBUG and logs to stdout.
 - `.env.example` — Expected environment variables (see below).
 
 ## FastAPI Endpoints (high level)
@@ -38,14 +38,24 @@ Descriptions for each endpoint are scaffolded as `description="TODO: add descrip
 - Copy `.env.example` to `.env` and set:
   - `YNAB_API_KEY` — Personal access token for YNAB API.
   - `SPREADSHEET_ID` — Google Sheet containing “Users” and “Category Mappings” tabs.
-  - Google OAuth credentials are read from `credentials.json` (already in repo).
-- Logging writes to `log.txt` in the project root; level is DEBUG by default.
+  - `GOOGLE_SERVICE_ACCOUNT_FILE` — Path to credentials file (for local dev if you keep the file).
+  - `GOOGLE_CREDENTIALS_B64` — Base64 of the service account JSON; app writes it to a temp file and points `GOOGLE_SERVICE_ACCOUNT_FILE` at it (useful for Railway/containers).
+  - `API_KEY` — Required in the `x-api-key` header on all requests.
+- Logging writes to stdout; level is DEBUG by default.
 
 ## Running the FastAPI app
 
 1. Install dependencies: `poetry install`
 2. Start dev server: `poetry run uvicorn main:app --reload`
 3. Open docs: `http://localhost:8000/docs` (or `/redoc`) for schemas and examples.
+
+Auth: All endpoints require `x-api-key` matching the `API_KEY` env var.
+
+Google credentials: For container/Railway deploys, set `GOOGLE_CREDENTIALS_B64` and the app will write a temp `credentials.json` and set `GOOGLE_SERVICE_ACCOUNT_FILE`. Locally you can keep `credentials.json` and set `GOOGLE_SERVICE_ACCOUNT_FILE=credentials.json`.
+
+Logging: Logs go to stdout/stderr (no `log.txt` in production). Pipe to a file locally if desired.
+
+Railway quick-notes: Set start command `uvicorn main:app --host 0.0.0.0 --port $PORT`; configure env vars per environment (`API_KEY`, `YNAB_API_KEY`, `SPREADSHEET_ID`, `GOOGLE_CREDENTIALS_B64`). Filesystem is ephemeral; rely on env vars/base64 materialization for secrets.
 
 ## Development & Tests
 
